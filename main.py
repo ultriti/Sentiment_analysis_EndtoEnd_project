@@ -23,15 +23,15 @@ E. Emotion emoji
 """
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-ARTIFACTS_DIR = BASE_DIR / "Artifacts"
-STATIC_DIR = BASE_DIR / "static"
+# BASE_DIR = Path(__file__).resolve().parent.parent
+ARTIFACTS_DIR = "Artifacts"
+STATIC_DIR = "static"
 
 # Model Path Load
-model_Path = str(ARTIFACTS_DIR / "BiGRU_Model.keras")
+model_Path = str(r"Artifacts\BiGRU_Model.keras")
 
 # Tokenizer Path Load
-tokenizer_path = str(ARTIFACTS_DIR / "tokenizer.pkl")
+tokenizer_path = str(r"Artifacts\tokenizer.pkl")
 
 # Mx Seq Len
 max_seq_len = 50
