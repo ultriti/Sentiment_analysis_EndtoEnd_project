@@ -143,14 +143,14 @@ app.add_middleware(
 )
 
 # frontend mount here
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/static", StaticFiles(directory=str("static")), name="static")
 
 
 # ------------------------
 # api end points
 @app.get("/", include_in_schema=False)
 def serer_ui():
-    return FileResponse(str(STATIC_DIR / "index.html"))
+    return FileResponse(str("static\index.html"))
 
 
 # hceck health of app route
