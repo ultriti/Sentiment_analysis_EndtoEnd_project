@@ -1,11 +1,17 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-import re
-from pydantic import BaseModel, Field
 from contextlib import asynccontextmanager
+from pathlib import Path
+from pydantic import BaseModel, Field
 
-from keras.models import load_model
+import re
 import pickle
+from keras.models import load_model
+
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import numpy as np
 
 """
 1. we are going to make the contrint like
@@ -17,17 +23,21 @@ E. Emotion emoji
 """
 
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+ARTIFACTS_DIR = BASE_DIR / "Artifacts"
+STATIC_DIR = BASE_DIR / "static"
+
 # Model Path Load
-model_Path = r"Artifacts\BiGRU_Model.keras"
+model_Path = str(ARTIFACTS_DIR / "BiGRU_Model.keras")
 
 # Tokenizer Path Load
-tokenizer_path = r"Artifacts\tokenizer.pkl"
+tokenizer_path = str(ARTIFACTS_DIR / "tokenizer.pkl")
 
 # Mx Seq Len
 max_seq_len = 50
 
 # Emotion Labels
-emotion_labels = ["sadness", "joy", "love", "anger", "fear", "surprise"]
+emotion_labels = ['sadness', 'joy', 'love', 'anger', 'fear', 'surprise']
 
 # emotion emoji
 emotion_emoji = {
@@ -74,7 +84,7 @@ class TextInput(BaseModel):
         min_length=1,
         max_length=2000,
         description="the sentence to analyze",
-        json_schema_extra={"example": "i am happy fro this is working ! "},
+        json_schema_extra={"example": "i am so much happy for this"},
     )
 
 
@@ -96,7 +106,7 @@ Load the model and tokenizer once the server starts up.
 
 """
 
-dl_model = {}
+dl_model = {}  # { 1. BiGRU model 2. Tokenizer } -> true if both loaded , {} -> false
 
 
 @asynccontextmanager
@@ -108,7 +118,7 @@ async def Lifespan(app: FastAPI):
     with open(tokenizer_path, "rb") as file:
         dl_model["Tokenizer"] = pickle.load(file)  # tokenizer model
 
-    print("models are loaded successfully..")
+    print("models are loaded successfully UL..")
 
     # to puase or stop the code or flow we use yeild
 
@@ -129,18 +139,83 @@ B.
 app = FastAPI(lifespan=Lifespan)
 
 app.add_middleware(
-    CORSMiddleware, allow_origin=["*"], allow_methods=["*"], allow_headers=["*"]
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
 )
 
-app.mount('/frontend',StaticFiles(directory="frontend"),name='frontend')
+# frontend mount here
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
+# ------------------------
 # api end points
-@app.get("/")
-def read_root():
-    return {"message": "Hello World"}
+@app.get("/", include_in_schema=False)
+def serer_ui():
+    return FileResponse(str(STATIC_DIR / "index.html"))
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: str = None):
-    return {"item_id": item_id, "q": q}
+# hceck health of app route
+@app.get("/health", response_model=HealthRepsonse)
+def health_check():
+    return HealthRepsonse(status="server is running UL!", model_loaded=bool(dl_model))
+
+
+@app.post("/predict", response_model=PredictionResponse)
+def prediction(text_input: TextInput):
+
+    BiGRU_model = dl_model.get("BiGRU")
+    tokenizer = dl_model.get("Tokenizer")
+
+    if BiGRU_model is None or tokenizer is None:
+        raise HTTPException(
+            status_code=503, detail="Model not loaded yet. Please load the model."
+        )
+
+    # filter the input
+
+    text = preprocess_text(text_input.text)
+    print(text)
+
+    # tokenize the text
+    tokenized_text = tokenizer.texts_to_sequences([text])
+
+    # add padding
+    padded_text = pad_sequences(
+        tokenized_text, maxlen=max_seq_len, padding="post", truncating="post"
+    )
+    
+    
+    # sample_sequence = tokenizer.texts_to_sequences(sample_texts)
+    # sample_padded_sequences = pad_sequences(sample_sequence,maxlen=50,padding='post',truncating='post')
+
+    # sample_pred = np.argmax(model.predict(sample_padded_sequences),axis=1)
+
+    # label_name = ['sadness', 'joy', 'love', 'anger', 'fear', 'surprise']
+    
+
+    print(f"--------------------------padded_text:-\{padded_text}")   
+    probabilities = BiGRU_model.predict(padded_text)[0]
+    
+    print(f"--------------------------probabilities:-\{probabilities}")
+        
+    predicted_index = int(np.argmax(probabilities))
+    print(f"--------------------------predicted_index:-\{predicted_index}")
+    
+    all_probabilities = {
+        label : float(prob) for label,prob in zip(emotion_labels,probabilities)
+    }
+    print(f"--------------------------predicted_label :-\{all_probabilities}")
+    
+    predicted_label = emotion_labels[predicted_index]
+    # dict(zip(emotion_labels,probabilities))
+    # xip join 2 object with thier indexes
+
+
+
+    print(f"--------------------------predicted_label :-\{predicted_label}")
+    
+    return PredictionResponse(
+        text=text_input.text,
+        prediction_emotion=predicted_label,
+        confidence=float(probabilities[predicted_index]),
+        all_probabilities=all_probabilities
+    )
