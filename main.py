@@ -23,15 +23,16 @@ E. Emotion emoji
 """
 
 
-# BASE_DIR = Path(__file__).resolve().parent.parent
-ARTIFACTS_DIR = "Artifacts"
-STATIC_DIR = "static"
+# Resolve project files from this module so the app works from any working directory.
+BASE_DIR = Path(__file__).resolve().parent
+ARTIFACTS_DIR = BASE_DIR / "Artifacts"
+STATIC_DIR = BASE_DIR / "static"
 
 # Model Path Load
-model_Path = str(r"Artifacts\BiGRU_Model.keras")
+model_Path = ARTIFACTS_DIR / "BiGRU_Model.keras"
 
 # Tokenizer Path Load
-tokenizer_path = str(r"Artifacts\tokenizer.pkl")
+tokenizer_path = ARTIFACTS_DIR / "tokenizer.pkl"
 
 # Mx Seq Len
 max_seq_len = 50
@@ -143,14 +144,14 @@ app.add_middleware(
 )
 
 # frontend mount here
-app.mount("/static", StaticFiles(directory=str("static")), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 # ------------------------
 # api end points
 @app.get("/", include_in_schema=False)
 def serer_ui():
-    return FileResponse(str("static\index.html"))
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 # hceck health of app route
